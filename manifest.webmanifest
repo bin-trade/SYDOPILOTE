@@ -1,16 +1,22 @@
 {
+  "id": "./",
   "name": "EXTRACTOR — Vérification des rapports",
   "short_name": "EXTRACTOR",
-  "description": "Vérification hors ligne des rapports enregistrés.",
-  "start_url": "./",
+  "description": "Scannez le QR code d'un rapport pour vérifier son authenticité, même hors connexion.",
+  "start_url": "./#/scan",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#eef4fb",
-  "theme_color": "#0758b8",
+  "background_color": "#040d20",
+  "theme_color": "#040d20",
   "lang": "fr",
+  "categories": ["business", "productivity", "utilities"],
   "icons": [
-    {"src":"./assets/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
-    {"src":"./assets/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+    { "src": "./assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Scanner un rapport", "url": "./#/scan", "icons": [{ "src": "./assets/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Historique", "url": "./#/history", "icons": [{ "src": "./assets/icon-192.png", "sizes": "192x192" }] }
   ]
 }
