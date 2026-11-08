@@ -5,4 +5,6 @@
 4. Ouvrir l'URL publiée en **HTTPS** (obligatoire pour la caméra), puis « Ajouter à l'écran d'accueil ».
 
 Pour changer de serveur de registre : modifier uniquement `apiUrl` dans `config.js`.
+
+Le service doit répondre avec `service: "EXTRACTOR_REPORT_REGISTRY"`. Après synchronisation, l'application propose les agences reçues dans `agencies` et bloque le scan tant qu'aucune agence n'est sélectionnée.
 Aucun secret n'est stocké dans l'application.

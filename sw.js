@@ -1,11 +1,12 @@
 // EXTRACTOR · service worker — l'app complète fonctionne hors connexion.
 // Stratégie : on sert le cache immédiatement, et on le rafraîchit en arrière-plan.
 // Pour forcer une mise à jour chez tous les utilisateurs, changer CACHE ci-dessous.
-const CACHE = "extractor-pwa-3";
+const CACHE = "extractor-pwa-5";
 const ASSETS = [
   "./", "./index.html", "./styles.css", "./config.js", "./manifest.webmanifest",
   "./js/app.js", "./js/ui.js", "./js/store.js", "./js/verify.js", "./js/scanner.js",
   "./vendor/jsQR.js",
+  "./assets/fond.png",
   "./assets/icon-192.png", "./assets/icon-512.png",
   "./assets/fonts/dm-sans-400.woff2", "./assets/fonts/dm-sans-500.woff2",
   "./assets/fonts/dm-sans-600.woff2", "./assets/fonts/dm-sans-700.woff2",

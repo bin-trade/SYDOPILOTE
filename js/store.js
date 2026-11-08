@@ -1,6 +1,8 @@
 // Stockage local : registre synchronisé, historique, réglages.
 const K = {
   reports: 'extractor_reports',        // même clé que la v1 : le registre existant est conservé
+  agencies: 'extractor_agencies_v1',
+  selectedAgency: 'extractor_selected_agency_v1',
   history: 'extractor_history_v2',
   settings: 'extractor_settings',
   lastSync: 'extractor_last_sync',
@@ -22,6 +24,8 @@ const HISTORY_MAX = 100;
 
 export const store = {
   reports: Array.isArray(read(K.reports, [])) ? read(K.reports, []) : [],
+  agencies: Array.isArray(read(K.agencies, [])) ? read(K.agencies, []) : [],
+  selectedAgencyId: (() => { try { return localStorage.getItem(K.selectedAgency) || ''; } catch { return ''; } })(),
   history: Array.isArray(read(K.history, [])) ? read(K.history, []) : [],
   settings: { sound: true, vibrate: true, autoSync: true, ...read(K.settings, {}) },
   lastSync: (() => { try { return localStorage.getItem(K.lastSync); } catch { return null; } })(),
@@ -32,6 +36,24 @@ export const store = {
     write(K.reports, this.reports);
     try { localStorage.setItem(K.lastSync, this.lastSync); } catch {}
     emit('reports');
+  },
+  setAgencies(list) {
+    const next = Array.isArray(list) ? list.filter(a => a && a.agency_id).map(a => ({
+      agency_id: String(a.agency_id),
+      agency_name: String(a.agency_name || a.agency_id)
+    })) : [];
+    this.agencies = [...new Map(next.map(a => [a.agency_id, a])).values()]
+      .sort((a, b) => a.agency_name.localeCompare(b.agency_name, 'fr'));
+    write(K.agencies, this.agencies);
+    if (this.selectedAgencyId && !this.agencies.some(a => a.agency_id === this.selectedAgencyId)) {
+      this.setSelectedAgency('');
+    }
+    emit('agencies');
+  },
+  setSelectedAgency(id) {
+    this.selectedAgencyId = String(id || '');
+    try { localStorage.setItem(K.selectedAgency, this.selectedAgencyId); } catch {}
+    emit('selectedAgency');
   },
   clearReports() {
     this.reports = []; this.lastSync = null;

@@ -31,7 +31,7 @@ export function foreignResult(raw) {
   };
 }
 
-export function verifyPayload(p, reports) {
+export function verifyPayload(p, reports, selectedAgency = null) {
   const claimed = {
     reportId: String(p.report_id),
     agency: p.agency ?? '—',
@@ -40,6 +40,17 @@ export function verifyPayload(p, reports) {
     code: p.control_code ?? '',
   };
   const rec = reports.find(r => String(r.report_id) === String(p.report_id));
+
+  if (!selectedAgency) {
+    return {
+      kind: 'invalid',
+      reason: 'agency_required',
+      title: 'Agence obligatoire',
+      summary: 'Sélectionnez l’agence concernée avant de scanner ce rapport.',
+      details: claimed,
+      checks: [{ key: 'agency', label: 'Agence sélectionnée', ok: false }],
+    };
+  }
 
   if (!rec) {
     return {
@@ -53,7 +64,11 @@ export function verifyPayload(p, reports) {
 
   const status = String(rec.status || '').toUpperCase();
   const revoked = ['REVOKED', 'INVALID'].includes(status);
-  const agencyOk = same(rec.agency_id, p.agency) || same(rec.agency_name, p.agency);
+  const qrAgency = p.agency_id ?? p.agency;
+  const recordAgencyOk = same(rec.agency_id, qrAgency) || same(rec.agency_name, p.agency);
+  const selectedAgencyOk = same(selectedAgency.agency_id, rec.agency_id)
+    || same(selectedAgency.agency_name, rec.agency_name);
+  const agencyOk = recordAgencyOk && selectedAgencyOk;
   const periodOk = same(rec.month, p.period);
   const regCode = String(rec.control_code ?? '').trim();
   const codeOk = regCode !== '' && regCode === String(p.control_code ?? '').trim();
@@ -64,7 +79,8 @@ export function verifyPayload(p, reports) {
   const checks = [
     { key: 'registry', label: 'Présent dans le registre', ok: true },
     { key: 'status', label: 'Rapport en vigueur', ok: !revoked, detail: revoked ? `Statut : ${status}` : null },
-    { key: 'agency', label: 'Agence', ok: agencyOk, detail: agencyOk ? null : diff(p.agency, rec.agency_name || rec.agency_id) },
+    { key: 'agency', label: 'Agence sélectionnée', ok: agencyOk,
+      detail: agencyOk ? null : `Sélectionnée : ${selectedAgency.agency_name} · QR enregistré pour : ${rec.agency_name || rec.agency_id}` },
     { key: 'period', label: 'Période', ok: periodOk, detail: periodOk ? null : diff(p.period, rec.month) },
     { key: 'date', label: 'Date du rapport (informatif)', ok: true, detail: null },
     { key: 'code', label: 'Code de contrôle', ok: codeOk, detail: codeOk ? null : 'Ne correspond pas au registre' },
@@ -83,6 +99,10 @@ export function verifyPayload(p, reports) {
     return { kind: 'invalid', reason: 'revoked', title: 'Rapport révoqué',
       summary: 'Ce rapport a été révoqué ou déclaré non conforme. Il ne doit plus être accepté.', details, checks };
   }
+  if (!selectedAgencyOk) {
+    return { kind: 'invalid', reason: 'agency_mismatch', title: 'Agence incorrecte',
+      summary: `ATTENTION : ce code QR ne correspond pas à l’agence sélectionnée (${selectedAgency.agency_name}). Il est enregistré pour ${rec.agency_name || rec.agency_id}.`, details, checks };
+  }
   if (failed) {
     return { kind: 'invalid', reason: 'mismatch', title: 'Rapport non conforme',
       summary: `${failed} information${failed > 1 ? 's' : ''} du QR ne correspond${failed > 1 ? 'ent' : ''} pas au registre. Le document a peut-être été modifié.`,
@@ -92,7 +112,7 @@ export function verifyPayload(p, reports) {
     summary: 'Toutes les informations du QR correspondent au registre officiel.', details, checks };
 }
 
-export function verifyRaw(raw, reports) {
+export function verifyRaw(raw, reports, selectedAgency = null) {
   const parsed = parseQr(raw);
-  return parsed.ok ? verifyPayload(parsed.data, reports) : foreignResult(parsed.raw);
+  return parsed.ok ? verifyPayload(parsed.data, reports, selectedAgency) : foreignResult(parsed.raw);
 }

@@ -11,12 +11,29 @@ const screens = {
   result: $('#screen-result'), settings: $('#screen-settings'),
 };
 const video = $('#video'), vf = $('#viewfinder'), hintEl = $('#scanHint');
+const agencySelect = $('#agencySelect'), agencyStatus = $('#agencyStatus');
 const torchBtn = $('#torchBtn'), flipBtn = $('#flipBtn'), fileInput = $('#fileInput');
 const DEFAULT_HINT = 'Placez le QR code du rapport dans le cadre';
 
 let current = null, prevRoute = null, handling = false, starting = false;
 let lastRaw = null, lastRawAt = 0; // évite de relire le même QR juste après un résultat
 let histFilter = 'all', regAgency = 'all', regLimit = 40, deferredInstall = null;
+
+function getSelectedAgency() {
+  return store.agencies.find(a => a.agency_id === store.selectedAgencyId) || null;
+}
+
+function renderAgencyPicker() {
+  if (!agencySelect) return;
+  agencySelect.replaceChildren(
+    el('option', { value: '', text: store.agencies.length ? 'Sélectionner une agence' : 'Synchronisez d’abord le registre' }),
+    ...store.agencies.map(a => el('option', { value: a.agency_id, text: a.agency_name }))
+  );
+  agencySelect.value = store.selectedAgencyId;
+  agencyStatus.textContent = store.lastSync
+    ? `Références synchronisées ${relTime(store.lastSync)}. ${navigator.onLine ? 'Actualisables en ligne.' : 'Utilisées hors connexion.'}`
+    : 'Aucune référence locale. Une première synchronisation est obligatoire.';
+}
 
 /* ───────────── Retours sensoriels (son + vibration) ───────────── */
 let audioCtx = null;
@@ -98,6 +115,7 @@ function sync() {
       if (!Array.isArray(data.reports)) {
         throw new Error('Le pilote n’a pas renvoyé la liste des rapports.');
       }
+      store.setAgencies(Array.isArray(data.agencies) ? data.agencies : data.reports.map(r => ({ agency_id: r.agency_id, agency_name: r.agency_name })));
       store.setReports(data.reports || []);
       return { ok: true };
     } catch (e) {
@@ -165,6 +183,12 @@ function setCamState(kind) {
 
 async function startCamera(force = false) {
   if (current !== 'scan' || starting) return;
+  if (!getSelectedAgency()) {
+    scanner.stop();
+    vf.className = 'viewfinder';
+    hint('Sélectionnez une agence avant de scanner');
+    return;
+  }
   handling = false;
   vf.className = 'viewfinder'; hint(DEFAULT_HINT);
   if (!cameraSupported()) return setCamState('unsupported');
@@ -201,15 +225,22 @@ async function handleRaw(raw) {
   scanner.pause();
   vf.classList.add('found');
 
+  const selectedAgency = getSelectedAgency();
+  if (!selectedAgency) {
+    toast('Sélectionnez une agence avant de scanner');
+    handling = false;
+    scanner.resume();
+    return;
+  }
   const parsed = parseQr(raw);
-  let res = verifyRaw(raw, store.reports);
+  let res = verifyRaw(raw, store.reports, selectedAgency);
 
   // Rapport inconnu localement mais connexion disponible : on consulte le registre en ligne.
   if (res.kind === 'unknown' && navigator.onLine && store.settings.autoSync) {
     vf.classList.remove('found'); vf.classList.add('busy');
     hint('Consultation du registre en ligne…');
     const r = await sync();
-    if (r.ok) res = verifyRaw(raw, store.reports);
+    if (r.ok) res = verifyRaw(raw, store.reports, selectedAgency);
     vf.classList.remove('busy'); vf.classList.add('found');
   }
 
@@ -234,6 +265,17 @@ fileInput.addEventListener('change', async () => {
     const raw = await decodeImageFile(file);
     if (raw) handleRaw(raw); else toast('Aucun QR code détecté dans cette image');
   } catch { toast("Image illisible"); }
+});
+
+agencySelect?.addEventListener('change', () => {
+  store.setSelectedAgency(agencySelect.value);
+  if (getSelectedAgency()) {
+    hint(DEFAULT_HINT);
+    startCamera(true);
+  } else {
+    stopCamera();
+    hint('Sélectionnez une agence avant de scanner');
+  }
 });
 
 /* ───────────── Écran 2 : Historique ───────────── */
@@ -372,7 +414,7 @@ function renderResult(id) {
       btn.disabled = true;
       const r = await sync();
       if (!r.ok) { toast(`Échec : ${r.error}`); btn.disabled = false; return; }
-      const res = verifyPayload(e.qr, store.reports);
+      const res = verifyPayload(e.qr, store.reports, getSelectedAgency());
       store.updateHistory(e.uid, res);
       feedback(res.kind);
       renderResult(e.uid);
@@ -457,10 +499,12 @@ function show(name, arg) {
   document.querySelectorAll('.tab').forEach(t => { if (t.dataset.tab === name) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current'); });
 
   if (leaving === 'scan' && name !== 'scan') stopCamera();
-  if (name === 'scan') startCamera(); else { renderers[name](arg); screens[name].scrollTop = 0; }
+  if (name === 'scan') { renderAgencyPicker(); startCamera(); }
+  else { renderers[name](arg); screens[name].scrollTop = 0; }
 }
 
 function refresh() {
+  renderAgencyPicker();
   if (current && current !== 'scan' && current !== 'result') renderers[current]();
   updateNet();
 }

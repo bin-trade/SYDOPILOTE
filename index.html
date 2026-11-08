@@ -64,6 +64,13 @@
     </div>
 
     <div class="scan-lower">
+      <label class="agency-picker" for="agencySelect">
+        <span>Agence à vérifier</span>
+        <select id="agencySelect" aria-describedby="agencyStatus">
+          <option value="">Synchronisez puis sélectionnez une agence</option>
+        </select>
+        <small id="agencyStatus">La sélection est obligatoire avant le scan.</small>
+      </label>
       <p class="scan-hint" id="scanHint" role="status">Placez le QR code du rapport dans le cadre</p>
       <button class="pill-btn" id="photoBtn"><svg class="ic"><use href="#i-image"/></svg><span>Depuis une photo</span></button>
       <input type="file" id="fileInput" accept="image/*" hidden>
