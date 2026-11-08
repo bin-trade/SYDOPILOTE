@@ -35,6 +35,7 @@ export function verifyPayload(p, reports, selectedAgency = null) {
   const claimed = {
     reportId: String(p.report_id),
     agency: p.agency ?? '—',
+    bureauCode: p.bureau_code ?? '—',
     period: p.period ?? '—',
     reportDate: p.report_date ?? '—',
     code: p.control_code ?? '',
@@ -66,9 +67,10 @@ export function verifyPayload(p, reports, selectedAgency = null) {
   const revoked = ['REVOKED', 'INVALID'].includes(status);
   const qrAgency = p.agency_id ?? p.agency;
   const recordAgencyOk = same(rec.agency_id, qrAgency) || same(rec.agency_name, p.agency);
+  const recordBureauOk = same(rec.bureau_code, p.bureau_code);
   const selectedAgencyOk = same(selectedAgency.agency_id, rec.agency_id)
-    || same(selectedAgency.agency_name, rec.agency_name);
-  const agencyOk = recordAgencyOk && selectedAgencyOk;
+    && same(selectedAgency.bureau_code, rec.bureau_code);
+  const agencyOk = recordAgencyOk && recordBureauOk && selectedAgencyOk;
   const periodOk = same(rec.month, p.period);
   const regCode = String(rec.control_code ?? '').trim();
   const codeOk = regCode !== '' && regCode === String(p.control_code ?? '').trim();
@@ -80,7 +82,7 @@ export function verifyPayload(p, reports, selectedAgency = null) {
     { key: 'registry', label: 'Présent dans le registre', ok: true },
     { key: 'status', label: 'Rapport en vigueur', ok: !revoked, detail: revoked ? `Statut : ${status}` : null },
     { key: 'agency', label: 'Agence sélectionnée', ok: agencyOk,
-      detail: agencyOk ? null : `Sélectionnée : ${selectedAgency.agency_name} · QR enregistré pour : ${rec.agency_name || rec.agency_id}` },
+      detail: agencyOk ? null : `Bureau sélectionné : ${selectedAgency.bureau_code} · QR enregistré pour : ${rec.bureau_code || 'inconnu'} · ${rec.agency_name || rec.agency_id}` },
     { key: 'period', label: 'Période', ok: periodOk, detail: periodOk ? null : diff(p.period, rec.month) },
     { key: 'date', label: 'Date du rapport (informatif)', ok: true, detail: null },
     { key: 'code', label: 'Code de contrôle', ok: codeOk, detail: codeOk ? null : 'Ne correspond pas au registre' },
@@ -90,6 +92,7 @@ export function verifyPayload(p, reports, selectedAgency = null) {
   const details = {
     reportId: claimed.reportId,
     agency: rec.agency_name || rec.agency_id || claimed.agency,
+    bureauCode: rec.bureau_code || claimed.bureauCode,
     period: rec.month ?? claimed.period,
     reportDate: rec.report_date ?? claimed.reportDate,
     code: claimed.code,
@@ -101,7 +104,7 @@ export function verifyPayload(p, reports, selectedAgency = null) {
   }
   if (!selectedAgencyOk) {
     return { kind: 'invalid', reason: 'agency_mismatch', title: 'Agence incorrecte',
-      summary: `ATTENTION : ce code QR ne correspond pas à l’agence sélectionnée (${selectedAgency.agency_name}). Il est enregistré pour ${rec.agency_name || rec.agency_id}.`, details, checks };
+      summary: `ATTENTION : ce code QR ne correspond pas au bureau/agence sélectionné (${selectedAgency.bureau_code} · ${selectedAgency.agency_name}). Il est enregistré pour ${rec.bureau_code || 'bureau inconnu'} · ${rec.agency_name || rec.agency_id}.`, details, checks };
   }
   if (failed) {
     return { kind: 'invalid', reason: 'mismatch', title: 'Rapport non conforme',

@@ -1,6 +1,6 @@
 window.EXTRACTOR_PWA_CONFIG = {
   appName: "EXTRACTOR",
-  apiUrl: "https://script.google.com/macros/s/AKfycbxNdLJNj6c8g8ITmIORLNjtQ7Q31hPwc6m3YTQrWh-camt47IoAkffGQVHsjxa0pce3/exec",
+  apiUrl: "https://script.google.com/macros/s/AKfycbzXp8nW-92hUNWbQHEOgC_gDUKqsEOY9XkOmMRRpCFxeXwoSfNshA08qWnfAco5xBOZ/exec",
   expectedService: "EXTRACTOR_REPORT_REGISTRY",
-  cacheVersion: "extractor-pwa-5"
+  cacheVersion: "extractor-pwa-8"
 };

@@ -65,7 +65,17 @@
 
     <div class="scan-lower">
       <label class="agency-picker" for="agencySelect">
+        <span>Bureau douanier</span>
+        <select id="bureauSelect" aria-describedby="agencyStatus">
+          <option value="">Synchronisez puis sélectionnez un bureau</option>
+        </select>
+        <span class="agency-or">Puis sélectionner l'agence</span>
         <span>Agence à vérifier</span>
+        <input id="agencySearch" type="search" autocomplete="off" spellcheck="false"
+          placeholder="Saisir le nom ou l'identifiant…" aria-label="Rechercher une agence"
+          aria-controls="agencySuggestions" aria-autocomplete="list">
+        <div id="agencySuggestions" class="agency-suggestions" role="listbox" hidden></div>
+        <span class="agency-or">ou choisir dans la liste</span>
         <select id="agencySelect" aria-describedby="agencyStatus">
           <option value="">Synchronisez puis sélectionnez une agence</option>
         </select>

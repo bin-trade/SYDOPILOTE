@@ -11,28 +11,69 @@ const screens = {
   result: $('#screen-result'), settings: $('#screen-settings'),
 };
 const video = $('#video'), vf = $('#viewfinder'), hintEl = $('#scanHint');
-const agencySelect = $('#agencySelect'), agencyStatus = $('#agencyStatus');
+const bureauSelect = $('#bureauSelect'), agencySelect = $('#agencySelect'), agencySearch = $('#agencySearch'), agencySuggestions = $('#agencySuggestions'), agencyStatus = $('#agencyStatus');
 const torchBtn = $('#torchBtn'), flipBtn = $('#flipBtn'), fileInput = $('#fileInput');
 const DEFAULT_HINT = 'Placez le QR code du rapport dans le cadre';
 
 let current = null, prevRoute = null, handling = false, starting = false;
+// Une agence mémorisée ne doit pas déclencher la caméra automatiquement au
+// lancement : l'utilisateur doit la sélectionner dans cette session.
+let cameraUnlocked = false;
+let selectedBureauCode = '';
 let lastRaw = null, lastRawAt = 0; // évite de relire le même QR juste après un résultat
 let histFilter = 'all', regAgency = 'all', regLimit = 40, deferredInstall = null;
 
 function getSelectedAgency() {
-  return store.agencies.find(a => a.agency_id === store.selectedAgencyId) || null;
+  return store.agencies.find(a => a.agency_key === store.selectedAgencyId) || null;
 }
 
 function renderAgencyPicker() {
   if (!agencySelect) return;
-  agencySelect.replaceChildren(
-    el('option', { value: '', text: store.agencies.length ? 'Sélectionner une agence' : 'Synchronisez d’abord le registre' }),
-    ...store.agencies.map(a => el('option', { value: a.agency_id, text: a.agency_name }))
+  const bureaux = [...new Map(store.agencies.map(a => [a.bureau_code, a])).values()]
+    .sort((a, b) => a.bureau_code.localeCompare(b.bureau_code, 'fr'));
+  bureauSelect.replaceChildren(
+    el('option', { value: '', text: bureaux.length ? 'Sélectionner un bureau' : 'Synchronisez d’abord le registre' }),
+    ...bureaux.map(b => el('option', { value: b.bureau_code, text: b.location ? `${b.bureau_code} — ${b.location}` : b.bureau_code }))
   );
-  agencySelect.value = store.selectedAgencyId;
+  bureauSelect.value = selectedBureauCode;
+  const bureauAgencies = store.agencies.filter(a => a.bureau_code === selectedBureauCode);
+  agencySelect.replaceChildren(
+    el('option', { value: '', text: selectedBureauCode ? 'Sélectionner une agence' : 'Sélectionnez d’abord un bureau' }),
+    ...bureauAgencies.map(a => el('option', { value: a.agency_key, text: a.agency_name }))
+  );
+  agencySelect.value = cameraUnlocked ? store.selectedAgencyId : '';
+  if (agencySearch) {
+    agencySearch.value = cameraUnlocked ? (getSelectedAgency()?.agency_name || '') : '';
+    agencySearch.disabled = !bureauAgencies.length;
+  }
+  bureauSelect.disabled = !bureaux.length;
+  agencySelect.disabled = !bureauAgencies.length;
+  if (agencySuggestions) { agencySuggestions.replaceChildren(); agencySuggestions.hidden = true; }
   agencyStatus.textContent = store.lastSync
     ? `Références synchronisées ${relTime(store.lastSync)}. ${navigator.onLine ? 'Actualisables en ligne.' : 'Utilisées hors connexion.'}`
     : 'Aucune référence locale. Une première synchronisation est obligatoire.';
+}
+
+function agencyMatches(query) {
+  const q = String(query || '').trim().toLocaleLowerCase('fr');
+  const bureauAgencies = store.agencies.filter(a => a.bureau_code === selectedBureauCode);
+  if (!q) return bureauAgencies;
+  return bureauAgencies.filter(a => `${a.agency_name} ${a.agency_id}`.toLocaleLowerCase('fr').includes(q));
+}
+
+function chooseAgency(id) {
+  const agency = store.agencies.find(a => a.agency_key === id || a.agency_id === id);
+  if (!agency) return;
+  if (agency.bureau_code !== selectedBureauCode) return;
+  store.setSelectedAgency(agency.agency_key);
+  cameraUnlocked = true;
+  agencySelect.value = agency.agency_key;
+  agencySearch.value = agency.agency_name;
+  agencySuggestions.replaceChildren();
+  agencySuggestions.hidden = true;
+  hint(DEFAULT_HINT);
+  vf.hidden = false;
+  startCamera(true);
 }
 
 /* ───────────── Retours sensoriels (son + vibration) ───────────── */
@@ -183,12 +224,15 @@ function setCamState(kind) {
 
 async function startCamera(force = false) {
   if (current !== 'scan' || starting) return;
-  if (!getSelectedAgency()) {
+  if (!cameraUnlocked || !getSelectedAgency()) {
     scanner.stop();
+    vf.hidden = true;
+    torchBtn.hidden = true; flipBtn.hidden = true;
     vf.className = 'viewfinder';
-    hint('Sélectionnez une agence avant de scanner');
+    hint('Sélectionnez une agence pour activer la caméra');
     return;
   }
+  vf.hidden = false;
   handling = false;
   vf.className = 'viewfinder'; hint(DEFAULT_HINT);
   if (!cameraSupported()) return setCamState('unsupported');
@@ -226,7 +270,7 @@ async function handleRaw(raw) {
   vf.classList.add('found');
 
   const selectedAgency = getSelectedAgency();
-  if (!selectedAgency) {
+  if (!cameraUnlocked || !selectedAgency) {
     toast('Sélectionnez une agence avant de scanner');
     handling = false;
     scanner.resume();
@@ -261,21 +305,53 @@ fileInput.addEventListener('change', async () => {
   const file = fileInput.files && fileInput.files[0];
   fileInput.value = '';
   if (!file || handling) return;
+  if (!cameraUnlocked || !getSelectedAgency()) {
+    toast('Sélectionnez une agence avant de scanner');
+    return;
+  }
   try {
     const raw = await decodeImageFile(file);
     if (raw) handleRaw(raw); else toast('Aucun QR code détecté dans cette image');
   } catch { toast("Image illisible"); }
 });
 
+ bureauSelect?.addEventListener('change', () => {
+  selectedBureauCode = bureauSelect.value;
+  cameraUnlocked = false;
+  store.setSelectedAgency('');
+  stopCamera();
+  renderAgencyPicker();
+  hint(selectedBureauCode ? 'Sélectionnez une agence pour activer la caméra' : 'Sélectionnez d’abord un bureau');
+});
+
 agencySelect?.addEventListener('change', () => {
-  store.setSelectedAgency(agencySelect.value);
-  if (getSelectedAgency()) {
+  cameraUnlocked = !!agencySelect.value;
+  if (cameraUnlocked) chooseAgency(agencySelect.value);
+  else store.setSelectedAgency('');
+  cameraUnlocked = !!getSelectedAgency();
+  if (cameraUnlocked) {
     hint(DEFAULT_HINT);
+    vf.hidden = false;
     startCamera(true);
   } else {
     stopCamera();
     hint('Sélectionnez une agence avant de scanner');
   }
+});
+
+agencySearch?.addEventListener('input', () => {
+  const matches = agencyMatches(agencySearch.value);
+  agencySuggestions.replaceChildren(...matches.slice(0, 30).map(agency =>
+    el('button', {
+      type: 'button', class: 'agency-suggestion', role: 'option',
+      text: agency.agency_name,
+      onClick: () => chooseAgency(agency.agency_id),
+    })
+  ));
+  agencySuggestions.hidden = !agencySearch.value.trim() || !matches.length;
+  agencyStatus.textContent = agencySearch.value.trim()
+    ? (matches.length ? `${matches.length} agence${matches.length > 1 ? 's' : ''} correspondante${matches.length > 1 ? 's' : ''}. Sélectionnez-en une.` : 'Aucune agence ne correspond à cette recherche.')
+    : 'Saisissez quelques caractères ou utilisez la liste déroulante.';
 });
 
 /* ───────────── Écran 2 : Historique ───────────── */
@@ -381,7 +457,7 @@ function renderResult(id) {
 
   const rows = e.kind === 'foreign'
     ? [['Contenu du QR', d.raw || '(vide)', 'mono']]
-    : [['Agence', d.agency], ['Période', d.period], ['Date du rapport', d.reportDate], ['Référence', d.reportId, 'mono'], ['Code de contrôle', d.code, 'mono']]
+    : [['Bureau', d.bureauCode], ['Agence', d.agency], ['Période', d.period], ['Date du rapport', d.reportDate], ['Référence', d.reportId, 'mono'], ['Code de contrôle', d.code, 'mono']]
         .filter(r => r[1] !== undefined && r[1] !== null && String(r[1]).trim() !== '');
 
   const hero = el('div', { class: 'res-hero ' + k.cls },

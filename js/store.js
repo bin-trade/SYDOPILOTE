@@ -40,12 +40,16 @@ export const store = {
   setAgencies(list) {
     const next = Array.isArray(list) ? list.filter(a => a && a.agency_id).map(a => ({
       agency_id: String(a.agency_id),
-      agency_name: String(a.agency_name || a.agency_id)
+      agency_name: String(a.agency_name || a.agency_id),
+      bureau_code: String(a.bureau_code || 'SANS_BUREAU').trim().toUpperCase(),
+      location: String(a.location || '')
     })) : [];
-    this.agencies = [...new Map(next.map(a => [a.agency_id, a])).values()]
-      .sort((a, b) => a.agency_name.localeCompare(b.agency_name, 'fr'));
+    this.agencies = [...new Map(next.map(a => [a.bureau_code + '::' + a.agency_id, {
+      ...a, agency_key: a.bureau_code + '::' + a.agency_id
+    }])).values()]
+      .sort((a, b) => a.agency_name.localeCompare(b.agency_name, 'fr') || a.bureau_code.localeCompare(b.bureau_code, 'fr'));
     write(K.agencies, this.agencies);
-    if (this.selectedAgencyId && !this.agencies.some(a => a.agency_id === this.selectedAgencyId)) {
+    if (this.selectedAgencyId && !this.agencies.some(a => a.agency_key === this.selectedAgencyId)) {
       this.setSelectedAgency('');
     }
     emit('agencies');
