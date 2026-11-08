@@ -55,7 +55,6 @@ export function verifyPayload(p, reports) {
   const revoked = ['REVOKED', 'INVALID'].includes(status);
   const agencyOk = same(rec.agency_id, p.agency) || same(rec.agency_name, p.agency);
   const periodOk = same(rec.month, p.period);
-  const dateOk = dateKey(rec.report_date) === dateKey(p.report_date);
   const regCode = String(rec.control_code ?? '').trim();
   const codeOk = regCode !== '' && regCode === String(p.control_code ?? '').trim();
 
@@ -67,7 +66,7 @@ export function verifyPayload(p, reports) {
     { key: 'status', label: 'Rapport en vigueur', ok: !revoked, detail: revoked ? `Statut : ${status}` : null },
     { key: 'agency', label: 'Agence', ok: agencyOk, detail: agencyOk ? null : diff(p.agency, rec.agency_name || rec.agency_id) },
     { key: 'period', label: 'Période', ok: periodOk, detail: periodOk ? null : diff(p.period, rec.month) },
-    { key: 'date', label: 'Date du rapport', ok: dateOk, detail: dateOk ? null : diff(p.report_date, rec.report_date) },
+    { key: 'date', label: 'Date du rapport (informatif)', ok: true, detail: null },
     { key: 'code', label: 'Code de contrôle', ok: codeOk, detail: codeOk ? null : 'Ne correspond pas au registre' },
   ];
   const failed = checks.filter(c => !c.ok).length;

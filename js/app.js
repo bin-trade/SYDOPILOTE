@@ -86,8 +86,18 @@ function sync() {
     const timer = setTimeout(() => ctrl.abort(), 15000);
     try {
       const res = await fetch(`${CFG.apiUrl}?action=syncReports`, { signal: ctrl.signal, cache: 'no-store' });
+      const contentType = res.headers.get('content-type') || '';
+      if (!res.ok || !contentType.toLowerCase().includes('application/json')) {
+        throw new Error(`Réponse du pilote invalide (HTTP ${res.status})`);
+      }
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'Registre indisponible');
+      if (data.service && data.service !== CFG.expectedService) {
+        throw new Error('Cette URL correspond au mauvais pilote Apps Script.');
+      }
+      if (!Array.isArray(data.reports)) {
+        throw new Error('Le pilote n’a pas renvoyé la liste des rapports.');
+      }
       store.setReports(data.reports || []);
       return { ok: true };
     } catch (e) {
